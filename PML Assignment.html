@@ -1,0 +1,80 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Untitled Document.md</title><style></style></head><body id="preview">
+<h1><a id="Practical_Machine_Learning_Assignment__Prediction_Assignment_Writeup_0"></a>Practical Machine Learning Assignment - Prediction Assignment Writeup</h1>
+<h1><a id="Author_Josu_Lavandeira_1"></a>Author: Josué Lavandeira</h1>
+<p>==========================================================</p>
+<h3><a id="Background_3"></a>Background</h3>
+<p>Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <a href="http://groupware.les.inf.puc-rio.br/har">http://groupware.les.inf.puc-rio.br/har</a> (see the section on the Weight Lifting Exercise Dataset).</p>
+<p>The training data for this project are available here:</p>
+<p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv</a></p>
+<p>The test data are available here:</p>
+<p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv</a></p>
+<p>The main goal of this text is to analyze these data sets and to utilize the training data set to create a prediction model that allows for accurate prediction of data that’s similar to the data in the provided datasets, to test this similarity, we will use the test data set. Then we will apply the model we created to 20 other datasets and see how accurate our model really is.
+To do this we will use the following:</p>
+<h3><a id="Methododlogy_and_data_processing_18"></a>Methododlogy and data processing</h3>
+<p>First we download the data from the provided URL’s and then we load the data into R. For this to work, make sure the data files are in the same working directory you’re using in R, if not, then change the working folder to the one where the files are at, or copy the files into your current working directory. Also, the data has a lot of values labeled “#DIV/0!”, we change these values into NA’s so that we may manipulate the data more easily.</p>
+<pre><code class="language-{r}">training_set &lt;- read.<span class="hljs-function"><span class="hljs-title">csv</span><span class="hljs-params">(<span class="hljs-string">"pml-training.csv"</span>, na.strings=c(<span class="hljs-string">"#DIV/0!"</span>)</span></span> )
+testing_set &lt;- read.<span class="hljs-function"><span class="hljs-title">csv</span><span class="hljs-params">(<span class="hljs-string">"pml-testing.csv"</span>, na.strings=c(<span class="hljs-string">"#DIV/0!"</span>)</span></span> )
+</code></pre>
+<p>Then we set all values as numeric values</p>
+<pre><code class="language-{r}"><span class="hljs-keyword">for</span>(i <span class="hljs-operator">in</span> c(<span class="hljs-number">8</span>:ncol(training_set)-<span class="hljs-number">1</span>)) {training_set[,i] = <span class="hljs-keyword">as</span>.<span class="hljs-keyword">numeric</span>(<span class="hljs-keyword">as</span>.<span class="hljs-keyword">character</span>(training_set[,i]))}
+<span class="hljs-keyword">for</span>(i <span class="hljs-operator">in</span> c(<span class="hljs-number">8</span>:ncol(testing_set)-<span class="hljs-number">1</span>)) {testing_set[,i] = <span class="hljs-keyword">as</span>.<span class="hljs-keyword">numeric</span>(<span class="hljs-keyword">as</span>.<span class="hljs-keyword">character</span>(testing_set[,i]))}
+</code></pre>
+<p>And we also keep only complete columns (those that don’t have NA values) in the data sets.</p>
+<pre><code class="language-{r}">validcolumns &lt;- colnames(training_<span class="hljs-built_in">set</span>[colSums(is.na(training_<span class="hljs-built_in">set</span>)) == <span class="hljs-number">0</span>])[-(<span class="hljs-number">1</span>:<span class="hljs-number">7</span>)]
+training_<span class="hljs-built_in">set</span> &lt;- training_<span class="hljs-built_in">set</span>[validcolumns]
+training_<span class="hljs-built_in">set</span> <span class="hljs-comment">#results hidden</span>
+
+validcolumns2 &lt;- colnames(testing_<span class="hljs-built_in">set</span>[colSums(is.na(testing_<span class="hljs-built_in">set</span>)) == <span class="hljs-number">0</span>])[-(<span class="hljs-number">1</span>:<span class="hljs-number">7</span>)]
+testing_<span class="hljs-built_in">set</span> &lt;- testing_<span class="hljs-built_in">set</span>[validcolumns2]
+testing_<span class="hljs-built_in">set</span> <span class="hljs-comment">#results hidden</span>
+</code></pre>
+<p>Then we load the libraries needed for the data manipuation we’ll do and set a seed value to make our work reproducible.</p>
+<pre><code class="language-{r}"><span class="hljs-function"><span class="hljs-title">library</span><span class="hljs-params">(Hmisc)</span></span>
+<span class="hljs-function"><span class="hljs-title">library</span><span class="hljs-params">(caret)</span></span>
+<span class="hljs-function"><span class="hljs-title">library</span><span class="hljs-params">(randomForest)</span></span>
+<span class="hljs-function"><span class="hljs-title">library</span><span class="hljs-params">(foreach)</span></span>
+<span class="hljs-function"><span class="hljs-title">library</span><span class="hljs-params">(doParallel)</span></span>
+set.<span class="hljs-function"><span class="hljs-title">seed</span><span class="hljs-params">(<span class="hljs-number">12321</span>)</span></span>
+</code></pre>
+<h3><a id="Model_training_54"></a>Model training</h3>
+<p>And now we can slice the data to use a portion in training our model and other to validate it</p>
+<pre><code class="language-{r}">temp &lt;- createDataPartition(y=training_set<span class="hljs-variable">$classe</span>, p=<span class="hljs-number">0</span>.<span class="hljs-number">75</span>, list=FALSE )
+training &lt;- training_set[temp,]
+validating &lt;- training_set[-temp,]
+</code></pre>
+<p>Now we have to build our model, we will use the random forests method and create 6 random forests with 150 trees each. We’ll take advantage of the paralell processing tool registerDoParallel() for this.</p>
+<pre><code class="language-{r}">registerDoParallel()
+x &lt;- training[-ncol(training)]
+y &lt;- training<span class="hljs-variable">$classe</span>
+
+rf &lt;- foreach(ntree=rep(<span class="hljs-number">150</span>, <span class="hljs-number">6</span>), .combine=randomForest::combine, .packages=<span class="hljs-string">'randomForest'</span>) <span class="hljs-decorator">%dopar</span>% {
+randomForest(x, y, ntree=ntree) 
+}
+</code></pre>
+<h3><a id="Model_testing_75"></a>Model testing</h3>
+<p>And now we test the model on the training set</p>
+<pre><code class="language-{r}">trainpred &lt;- predict<span class="hljs-list">(<span class="hljs-keyword">rf</span>, newdata=training)</span>
+confusionMatrix<span class="hljs-list">(<span class="hljs-keyword">testpred</span>,training$classe)</span>
+# results hidden
+</code></pre>
+<p>And we test it on the validation data set</p>
+<pre><code class="language-{r}">validpred &lt;- predict<span class="hljs-list">(<span class="hljs-keyword">rf</span>, newdata=validating)</span>
+confusionMatrix<span class="hljs-list">(<span class="hljs-keyword">validpred</span>,validating$classe)</span>
+# results hidden
+</code></pre>
+<p>Now we can observe the model’s accuracy on the validation set and it’s out of sample error</p>
+<pre><code class="language-{r}"> accuracy &lt;- postResample(validpred, validating<span class="hljs-variable">$classe</span>)
+ accuracy
+
+ Accuracy     Kappa 
+<span class="hljs-number">0</span>.<span class="hljs-number">9965334</span>   <span class="hljs-number">0</span>.<span class="hljs-number">9956146</span> 
+
+oose &lt;- <span class="hljs-number">1</span> - <span class="hljs-keyword">as</span>.numeric(confusionMatrix(validating<span class="hljs-variable">$classe</span>, validpred)<span class="hljs-variable">$overall</span>[<span class="hljs-number">1</span>])
+oose
+[<span class="hljs-number">1</span>] <span class="hljs-number">0</span>.<span class="hljs-number">00346655</span>8
+</code></pre>
+<h1><a id="Conclusions_103"></a>Conclusions</h1>
+<hr>
+<p>We can observe in the confusion matrices for our data sets that the models seems to be very accurate. This model gives us an average accuracy of over 99% and an out of sample error of 0.34% which is great for any prediction model. We can confide that this model will give us accurate predictions for any similar dataset.</p>
+
+</body></html>
